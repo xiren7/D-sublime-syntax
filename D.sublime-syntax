@@ -1,0 +1,588 @@
+%YAML 1.2
+---
+# https://www.sublimetext.com/docs/3/syntax.html
+# https://www.sublimetext.com/docs/3/scope_naming.html
+# https://ruby-doc.org/core-2.3.1/Regexp.html
+# http://docs.sublimetext.info/en/latest/reference/symbols.html
+name: D2
+file_extensions: [d, di]
+first_line_match: ^#!.*\bg?dmd\b.
+scope: source.d
+
+variables:
+  identifier: '[[:alpha:]_][[:alnum:]_]*'
+  character_escaped: \\(?:\\|[abfnrtv''"?]|[0-3]\d{,2}|x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8}|&\w+;)
+  keywords_token_only: (?:catch|finally|try|do|import|goto|case|default|else|break|continue|throw|new|assert|switch|for|foreach|foreach_reverse|while)
+  keywords_all: (?:{{keywords_token_only}}|out|alias|return|if|pragma|version|function|delegate|mixin|with|cast|typeof|typeid)
+  field_not_startswith: (?:enum|struct|alias|version|return)
+  visibility_attribute: (?:private|protected|public|export|package)
+  function_name_not_contain: (?:private|public|pure|nothrow|inout|immutable|pragma|version|function|delegate|const|extern|mixin|deprecated|debug|with|cast|typeof|typeid|for|foreach|foreach_reverse|if|while|assert)
+  simple_variable_define: (?=^\s*{{visibility_attribute}}?\s*\b[\d\w\[\]_\(\)\*]+(?<!{{field_not_startswith}})\s*\b\*?\s*{{identifier}}\s*=?\s*[[:alnum:]]*\s*;)
+
+contexts:
+  main:
+    - meta_scope: meta.global.d
+    # match first line
+    - match: '^#!.*\n'
+      scope: comment.line.d
+    # match module
+    - match: '^\s*(module)\s+([^ ;]+?)\s*(;)'
+      captures:
+        1: keyword.control.d
+        2: constant.language.d
+        3: punctuation.terminator.d
+    # start hub
+    - match: (?=.)
+      push: hub
+
+  prototype:
+    - include: comments
+
+  hub-function:
+    - meta_scope: meta.function.d
+    - match: \{
+      scope: punctuation.block.d
+      push:
+        - include: hub
+    - include: hub
+
+  hub-class:
+    - meta_scope: meta.class.d
+    - match: \{
+      scope: punctuation.block.d
+      push:
+        - include: hub
+    - include: hub
+
+  signature-fields:
+    - meta_scope: meta.signature.field.d
+    - include: _token-no-jump
+    - match: ;
+      scope: punctuation.terminator.d
+      set: hub
+
+  hub-others:
+    - meta_scope: meta.others.d
+    - match: \{
+      scope: punctuation.block.d
+      push:
+        - include: hub
+    - include: hub
+
+  hub:
+    # {}
+    - match: \s*(q?\{)
+      captures: { 1: punctuation.block.d }
+      push: hub
+    - match: \s*(\})
+      captures: { 1: punctuation.block.d }
+      pop: true
+    # contains only visibility_attribute body|in|out
+    - match: (?=^\s*({{visibility_attribute}}|body|in|out)\s*$)
+      set: token
+    # contains any keywords_token_only and debug|unittest
+    - match: (?=[^/;\{]*\b({{keywords_token_only}}|debug|unittest)\b)
+      set: token
+    - match: '{{simple_variable_define}}'
+      set: signature-fields
+    # scans not include [/;{] ends with ;|q{
+    - match: (?=[^/;\{]*(;|(?<=q)\{))
+      set: token
+    # starts with return|if|static if
+    - match: (?=^\s*(return|if|static if|else)\b)
+      set: token
+    # starts with this(
+    - match: (?=^\s*\bthis\b\s*\()
+      set: signature
+    # scans not include [/;{=(] ends with =
+    - match: (?=[^/;\{=\(]*=)
+      set: token
+    # starts with identifier( not include keywords
+    - match: (?=^\s*{{identifier}}(?<!{{function_name_not_contain}})\s*\(.*\))
+      set: token
+    # enum define constants
+    - match: (?=.*\benum\b[^;:\{]+(;|:|$))
+      set: token
+    # else
+    - match: (?=.)
+      set: signature
+
+  hub-no-signature:
+    - meta_scope: meta.no-signature.d
+    - match: \s+
+    - match: q?\{
+      scope: punctuation.block.d
+      push: hub-no-signature
+    - match: \}
+      scope: punctuation.block.d
+      pop: true
+    - include: lables
+    - match: (;)\s*\n?
+      captures: { 1: punctuation.terminator.d }
+    - include: _token
+
+  lables:
+    - match: '^\s*(@?{{identifier}}(?<!default|case))\s*(:)'
+      captures:
+        1: constant.language.d
+        2: keyword.operator.d
+
+  token:
+    - include: lables
+    - match: \s*\n
+      set: hub
+    - match: \s+
+    - match: q?\{
+      scope: punctuation.block.d
+      push: hub
+    - match: \}
+      scope: punctuation.block.d
+      pop: true
+    - match: (;)\s*\n?
+      captures: { 1: punctuation.terminator.d }
+      set: hub
+    - include: _token
+
+  _token:
+    - include: controls
+    - include: numbers
+    - include: constants
+    - include: string-format-placeholder-everywhere
+    - include: operators
+    - include: strings
+    - include: types
+    - include: function-calls
+    - match: \b{{identifier}}\b
+    - include: punctuations
+
+  token-no-jump:
+    - include: _token-no-jump
+    - match: ;
+      scope: invalid.illegal.punctuation.d
+      set: hub
+
+  _token-no-jump:
+    - match: \s+
+    - include: controls
+    - include: numbers
+    - include: constants
+    - include: string-format-placeholder-everywhere
+    - include: types
+    - include: function-calls
+    - include: operators-in-signature
+    - include: strings
+    - include: punctuations
+
+  punctuations:
+    - match: '[\(\)]'
+      scope: punctuation.group.d
+    - match: '[\[\]]'
+      scope: punctuation.section.d
+    - match: \.
+      scope: punctuation.accessor.d
+    - match: \,
+      scope: punctuation.separator.d
+
+  # jump back to token or hub
+  signature:
+    # class|struct
+    - match: (?=[^\\/"`;]*\b(?:class|struct)\b\s*{{identifier}}\b)
+      set: # typename lookahead matched, match tokes, jump to typename
+        - meta_scope: meta.signature.type.d
+        - match: \s*\b(?:class|struct)\b
+          scope: storage.type.d
+          set: # typename matched, jump to identifier
+            - meta_scope: meta.signature.type.d
+            - match: \s*\b({{identifier}})\b
+              scope: support.type.d entity.name.type.d
+              set: # identifier matched, match tokes, jump back to hub
+                - meta_scope: meta.signature.type.d
+                - include: token-no-jump
+                - match: \s*(?=\{)
+                  set: hub-class
+            - match: '\S' # identifier not matched, jump back to hub
+              scope: invalid.illegal.identifier.d
+            - match: \s*(?=\{)
+              set: hub-class
+        - include: token-no-jump
+    # union|enum|template|interface
+    - match: (?=[^\\/"`;]*\b(?:union|enum|template|interface)\b\s*{{identifier}}\b)
+      set: # typename lookahead matched, match tokes, jump to typename
+        - meta_scope: meta.signature.type.d
+        - match: \s*\b(?:union|enum|template|interface)\b
+          scope: storage.type.d
+          set: # typename matched, jump to identifier
+            - meta_scope: meta.signature.type.d
+            - match: \s*\b({{identifier}})\b
+              scope: support.type.d entity.name.type.d
+              set: # identifier matched, match tokes, jump back to hub
+                - meta_scope: meta.signature.type.d
+                - include: token-no-jump
+                - match: \s*(?=\{)
+                  set: hub-others
+            - match: '\S' # identifier not matched, jump back to hub
+              scope: invalid.illegal.identifier.d
+            - match: \s*(?=\{)
+              set: hub-others
+        - include: token-no-jump
+    # this|~this
+    - match: \s+(~this|this)\s*(?=\()\b
+      captures: { 1: entity.name.function.d }
+      set:
+        - meta_scope: meta.signature.type.d
+        - include: token-no-jump
+        - match: \s+
+        - match: (?=\{)
+          set: hub-function
+    # funcion define
+    - match: (?=(^|([^\\/"`;]*[[:alpha:]_*\)\]]\s+))\*?{{identifier}}(?<!{{function_name_not_contain}})\s*(\(|$))
+      set:
+        - meta_scope: meta.signature.function.d
+        - include: token-no-jump
+        - match: \b({{identifier}})(?=\s*(\(|$))\b
+          scope: entity.name.function.d
+        - match: (?=\{)
+          set: hub-function
+    - match: (?=.)
+      set: token
+
+  function-calls:
+    - match: \b(?<!new\s)([[:lower:]_][[:alnum:]_]*)(!)
+      captures:
+        1: variable.function.d
+        2: keyword.operator.d
+    - match: \b(?<!new\s|\!)([[:lower:]_][[:alnum:]_]*)\s*(?=\()
+      captures: { 1: variable.function.d }
+
+  unittest:
+    - match: \bunittest|debug\b
+      scope: constant.language.d
+      push:
+        - meta_scope: meta.no-signature.d
+        - match: q?\{
+          scope: punctuation.block.d
+          set: hub-no-signature
+        - include: _token-no-jump
+        - match: \s+
+        - match: ;
+          scope: punctuation.terminator.d
+          pop: true
+    - match: \basm\b
+      scope: constant.language.d
+      push:
+        - meta_scope: meta.no-signature.d
+        - match: q?\{
+          scope: punctuation.block.d
+          push: scope:source.asm
+          with_prototype:
+            - include: comments
+            - match: '(?=\})'
+              pop: true
+        - include: _token-no-jump
+        - match: \s+
+        - match: \}
+          scope: punctuation.block.d
+          pop: true
+
+  constants:
+    # bool
+    - match: \b(?:true|false|null)\b
+      scope: constant.language.d
+    # symbols
+    - include: unittest
+    - match: \b(?:__simd|__ctfe|__FILE__|__FILE_FULL_PATH__|__FUNCTION__|__LINE__|__MODULE__|__PRETTY_FUNCTION__|__TIME__|__TIMESTAMP__|__VERSION__|__VENDOR__|__EOF__)\b
+      scope: constant.language.d
+    - match: \b(?:_arguments|_argptr)\b
+      scope: variable.language.d
+    # properties
+    - match: \b(?<=\.)(?:__vptr|__monitor|_ctor|_dtor|init|sizeof|alignof|mangleof|stringof|classinfo|alignof|offsetof)\b
+      scope: variable.language.d
+    # this
+    - match: \b(?:this|super)\b\s*(?!\()
+      scope: variable.language.d
+
+  types:
+    # modifier operators
+    - match: '[@!]'
+      scope: keyword.operator.d
+    # modifiers
+    - match: \b{{visibility_attribute}}\b
+      scope: storage.modifier.d
+    - match: \b(?:const|extern|deprecated|in|inout|static|override|final|abstract|volatile|synchronized|lazy|immutable|shared|__gshared|pure|nothrow|ref)\b
+      scope: storage.modifier.d
+    # property attributes
+    - match: \b(?<=@){{identifier}}\b
+      scope: storage.modifier.d
+    # basic types
+    - match: \b(?:class|struct|union|enum|template|interface)\b
+      scope: storage.type.d
+    - match: '\b(?<![[:alnum:]_]\.)(?:auto|ushort|int|uint|long|ulong|float|void|byte|ubyte|double|char|wchar|ucent|cent|short|bool|dchar|real|ireal|ifloat|idouble|creal|cfloat|cdouble|string|wstring|dstring|size_t|ptrdiff_t|sizediff_t|hash_t|equals_t)\b'
+      scope: support.type.d
+    - match: \b(?<![[:alnum:]_]\.)(?:int8_t|int16_t|int32_t|int64_t|uint8_t|uint16_t|uint32_t|uint64_t|int_least8_t|int_least16_t|int_least32_t|int_least64_t|uint_least8_t|uint_least16_t|uint_least32_t|uint_least64_t|int_fast8_t|int_fast16_t|int_fast32_t|int_fast64_t|uint_fast8_t|uint_fast16_t|uint_fast32_t|uint_fast64_t|intptr_t|uintptr_t|intmax_t|intmax_t|uintmax_t|uintmax_t)\b
+      scope: support.type.c
+    # user types
+    - match: '\b(?:_[[:upper:]]|[[:upper:]])[[:alnum:]_]*\b'
+      scope: support.type.d
+    # std module
+    - match: '(?:\b|\s+)(?:core|std|etc)\.[[:alnum:]_\.]+'
+      scope: support.type.module.d
+
+  operators:
+    - match: '[!=<>\-+*/~&\^%|$?:]'
+      scope: keyword.operator.d
+    - match: in(?=$|\{)
+      scope: keyword.control.d
+    - match: \b(?:new|align|is|__traits|__vector|__parameters)\b
+      scope: keyword.operator.d
+    - match: \b(?:delete|typedef|TypeTuple)\b
+      scope: invalid.deprecated.d
+
+  operators-in-signature:
+    - match: '[!=<>\-+*/~&\^%|$?:]'
+      scope: keyword.operator.d
+    - match: \b(?:in|align|is|__traits|__vector|__parameters)\b
+      scope: keyword.operator.d
+
+  controls:
+    - match: '\bbody\b'
+      scope: keyword.control.d
+      set: hub-function
+    - match: \b{{keywords_all}}\b
+      scope: keyword.control.d
+
+  comments:
+    # line
+    - match: \s*///?
+      push:
+        - meta_scope: comment.line.d
+        - match: \n
+          pop: true
+    # signature
+    - match: \s*/\*\*/
+      scope: comment.block.d
+    - match: \s*/\*\*?
+      push:
+        - meta_scope: comment.block.d
+        - match: \*/
+          pop: true
+    # nested
+    - match: \s*/\+\+/
+      scope: comment.block.d
+    - match: \s*(/\+\+?)
+      scope: comment.block.d
+      push:
+        - meta_scope: comment.block.d
+        - match: /\+\+?
+          push:
+            - match: \+/
+              pop: true
+        - match: \+/
+          pop: true
+
+  numbers:
+    - match: \.\.
+      scope: keyword.operator.d
+    - match: |-
+        (?x)
+        (?:
+          # floats
+          (?:\b(?:\d[\d_]*)\.(?!\.))
+          |
+          (?:
+            # dec
+            \b(?:\d[\d_]*)\.(?:\d[\d_]*)?(?:[Ee][+-]?[\d_]+)?
+            |
+            \.(?:\d[\d_]*)(?:[Ee][+-]?[\d_]+)?
+            |
+            \b(?:\d[\d_]*)(?:[Ee][+-]?[\d_]+)
+            |
+            # hex
+            \b(?:0[Xx][\h_][\h_]*(?:\.[\h_][\h_]*)?(?:[Pp][+-]?[\d_]+*))
+          )
+          # float suffix
+          (?:(?:[fF]i)|(?:Li)|[fFLi])?\b
+        |
+          # ints
+          (?:\b
+            (?:
+              # dec
+              (?:\d[\d_]*)
+              |
+              # hex
+              0[Xx][\h_][\h_]*
+              |
+              # bin
+              0[Bb][01_][01_]*
+            )
+            # int suffix
+            (?:(?:L[uU])|(?:[uU]L)|(?:[Ff]i)|(?:Li)|[iLuU])?
+          \b)
+        )
+      scope: constant.numeric.d
+
+  strings:
+    # wysiwyg alternate
+    - match: '`'
+      scope: punctuation.definition.string.d
+      push:
+        - meta_include_prototype: false
+        - meta_content_scope: string.quoted.other.d
+        - match: '`'
+          scope: punctuation.definition.string.d
+          set: string-postfix
+        - match: ''
+          push: scope:source.regexp.python
+          with_prototype:
+            - match: '(?=`)'
+              pop: true
+    # wysiwyg
+    - match: 'r"'
+      scope: punctuation.definition.string.d
+      push:
+        - meta_include_prototype: false
+        - meta_content_scope: string.quoted.other.d
+        - match: '"'
+          scope: punctuation.definition.string.d
+          set: string-postfix
+        - match: ''
+          push: scope:source.regexp.python
+          with_prototype:
+            - match: '(?=")'
+              pop: true
+    # hex
+    - match: 'x"'
+      scope: punctuation.definition.string.d
+      push:
+        - meta_include_prototype: false
+        - meta_content_scope: string.quoted.other.d
+        - match: '"'
+          scope: punctuation.definition.string.d
+          set: string-postfix
+        - match: ' |\n'
+        - match: \H
+          scope: invalid.illegal.d
+    - include: string-delimited
+    # quoted
+    - match: '"'
+      scope: punctuation.definition.string.d
+      push:
+        - meta_include_prototype: false
+        - meta_content_scope: string.quoted.double.d
+        - include: string-escaped
+        - include: string-format-placeholder
+        - match: '"'
+          scope: punctuation.definition.string.d
+          set: string-postfix
+    # single
+    - match: (\')(?:({{character_escaped}})|(.))?(\')
+      captures:
+        1: punctuation.definition.string.d
+        2: constant.character.escape.d
+        3: string.quoted.single.d
+        4: punctuation.definition.string.d
+    - match: (\')(.+)(\')
+      captures:
+        1: punctuation.definition.string.d
+        2: invalid.illegal.d
+        3: punctuation.definition.string.d
+
+  string-escaped:
+    - match: '{{character_escaped}}'
+      scope: constant.character.escape.d
+    - match: (\\)(?:(.)|\n)
+      captures:
+        1: invalid.illegal.d
+        2: invalid.illegal.d
+
+  string-postfix:
+    - match: '[cwd]?\b'
+      scope: storage.type.string.d
+      pop: true
+    - match: ''
+      pop: true
+
+  string-delimited:
+    - match: 'q"\['
+      scope: punctuation.definition.string.d
+      push:
+        - meta_content_scope: string.quoted.other.d
+        - include: string-format-placeholder
+        - match: '\]"'
+          scope: punctuation.definition.string.d
+          pop: true
+    - match: 'q"\('
+      scope: punctuation.definition.string.d
+      push:
+        - meta_content_scope: string.quoted.other.d
+        - include: string-format-placeholder
+        - match: '\)"'
+          scope: punctuation.definition.string.d
+          pop: true
+    - match: 'q"\{'
+      scope: punctuation.definition.string.d
+      push:
+        - meta_content_scope: string.quoted.other.d
+        - include: string-format-placeholder
+        - match: '\}"'
+          scope: punctuation.definition.string.d
+          pop: true
+    - match: 'q"<'
+      scope: punctuation.definition.string.d
+      push:
+        - meta_content_scope: string.quoted.other.d
+        - include: string-format-placeholder
+        - match: '>"'
+          scope: punctuation.definition.string.d
+          pop: true
+    - match: 'q"([[:graph:]])'
+      scope: punctuation.definition.string.d
+      push:
+        - meta_content_scope: string.quoted.other.string.d
+        - include: string-format-placeholder
+        - match: '\1"'
+          scope: punctuation.definition.string.d
+          pop: true
+    # heredoc
+    - match: 'q"({{identifier}})\n'
+      scope: punctuation.definition.string.d
+      push:
+        - meta_content_scope: string.quoted.other.d
+        - include: string-format-placeholder
+        - match: '^\1"'
+          scope: punctuation.definition.string.d
+          pop: true
+
+  string-format-placeholder:
+    - match: |-
+        (?x)
+        %
+          (?:\d+\$)?        # position
+          \#?               # alternate form
+          0?                # pad with zeros
+          \-?               # left-adjust
+          \ ?               # implicit sign
+          [+-]?             # sign
+          (?:\d*|\*)        # width
+          (?:\. (\d*|\*))?  # precision
+          [hlL]?            # length modifier but ignored)
+          (?:[scbdoxXeEfFgGaA|sr%\)]|-?\()
+      scope: constant.character.escape.d
+    - match: '%(?:[aAwdbBmyYHIpMSfzZjUWcxX%]|-[dmHIMSj])'
+      scope: constant.character.escape.d
+
+  string-format-placeholder-everywhere:
+    - match: |-
+        (?x)
+        (?<!\w)%
+          (?:\d+\$)?        # position
+          \#?               # alternate form
+          0?                # pad with zeros
+          \-?               # left-adjust
+          \ ?               # implicit sign
+          [+-]?             # sign
+          (?:\d*|\*)        # width
+          (?:\. (\d*|\*))?  # precision
+          [hlL]?            # length modifier but ignored)
+          (?:[scbdoxXeEfFgGaA|sr%\)]|-?\()
+          \s*\b
+      scope: constant.character.escape.d

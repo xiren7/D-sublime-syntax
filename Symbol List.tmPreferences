@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0">
+<dict>
+	<key>name</key>
+	<string>Symbol List</string>
+	<key>scope</key>
+	<string>source.d meta.signature</string>
+	<key>settings</key>
+	<dict>
+		<key>showInSymbolList</key>
+		<integer>1</integer>
+        <key>symbolTransformation</key>
+        <!-- remove noisy modifiers -->
+        <!-- replace multiple spaces with a single space if not the leading spaces -->
+        <!-- replace characters with ... after the 100th in one line -->
+        <string>
+            s/@(safe|trusted|system|nogc)\b|(?:\bconst|pure|nothrow|private|public|static\b) ?//g;
+            s/\s*\n\s*/ /g;
+            s/(^.{100})(?:.+)$/$1.../g;
+        </string>
+    </dict>
+</dict>
+</plist>

@@ -11,12 +11,14 @@ scope: source.d
 
 variables:
   identifier: '[[:alpha:]_][[:alnum:]_]*'
+  function_name: '(?:[[:lower:]_]|[[:lower:]])[[:alnum:]_]*'
+  type_name: '(?:[[:upper:]_]|[[:upper:]])[[:alnum:]_]*'
   character_escaped: \\(?:\\|[abfnrtv''"?]|[0-3]\d{,2}|x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8}|&\w+;)
   keywords_token_only: (?:catch|finally|try|do|import|goto|case|default|else|break|continue|throw|new|assert|switch|for|foreach|foreach_reverse|while)
   keywords_all: (?:{{keywords_token_only}}|out|alias|return|if|pragma|version|function|delegate|mixin|with|cast|typeof|typeid)
   field_not_startswith: (?:enum|struct|alias|version|return)
   visibility_attribute: (?:private|protected|public|export|package)
-  function_name_not_contain: (?:private|public|pure|nothrow|inout|immutable|pragma|version|function|delegate|const|extern|mixin|deprecated|debug|with|cast|typeof|typeid|for|foreach|foreach_reverse|if|while|assert)
+  function_name_not_contains: (?:private|public|pure|nothrow|inout|immutable|pragma|version|function|delegate|const|extern|mixin|deprecated|debug|with|cast|typeof|typeid|for|foreach|foreach_reverse|if|while|assert)
   simple_variable_define: (?=^\s*{{visibility_attribute}}?\s*\b[\d\w\[\]_\(\)\*]+(?<!{{field_not_startswith}})\s*\b\*?\s*{{identifier}}\s*=?\s*[[:alnum:]]*\s*;)
 
 contexts:
@@ -53,13 +55,6 @@ contexts:
       push:
         - include: hub
     - include: hub
-
-  signature-fields:
-    - meta_scope: meta.signature.field.d
-    - include: _token-no-jump
-    - match: ;
-      scope: punctuation.terminator.d
-      set: hub
 
   hub-others:
     - meta_scope: meta.others.d
@@ -98,7 +93,7 @@ contexts:
     - match: (?=[^/;\{=\(]*=)
       set: token
     # starts with identifier( not include keywords
-    - match: (?=^\s*{{identifier}}(?<!{{function_name_not_contain}})\s*\(.*\))
+    - match: (?=^\s*{{identifier}}(?<!{{function_name_not_contains}})\s*\(.*\))
       set: token
     # enum define constants
     - match: (?=.*\benum\b[^;:\{]+(;|:|$))
@@ -120,12 +115,6 @@ contexts:
     - match: (;)\s*\n?
       captures: { 1: punctuation.terminator.d }
     - include: _token
-
-  lables:
-    - match: '^\s*(@?{{identifier}}(?<!default|case))\s*(:)'
-      captures:
-        1: constant.language.d
-        2: keyword.operator.d
 
   token:
     - include: lables
@@ -172,16 +161,6 @@ contexts:
     - include: operators-in-signature
     - include: strings
     - include: punctuations
-
-  punctuations:
-    - match: '[\(\)]'
-      scope: punctuation.group.d
-    - match: '[\[\]]'
-      scope: punctuation.section.d
-    - match: \.
-      scope: punctuation.accessor.d
-    - match: \,
-      scope: punctuation.separator.d
 
   # jump back to token or hub
   signature:
@@ -235,7 +214,7 @@ contexts:
         - match: (?=\{)
           set: hub-function
     # funcion define
-    - match: (?=(^|([^\\/"`;]*[[:alpha:]_*\)\]]\s+))\*?{{identifier}}(?<!{{function_name_not_contain}})\s*(\(|$))
+    - match: (?=(^|([^\\/"`;]*[[:alpha:]_*\)\]]\s+))\*?{{function_name}}(?<!{{function_name_not_contains}})\s*(\(|$))
       set:
         - meta_scope: meta.signature.function.d
         - include: token-no-jump
@@ -247,11 +226,11 @@ contexts:
       set: token
 
   function-calls:
-    - match: \b(?<!new\s)([[:lower:]_][[:alnum:]_]*)(!)
+    - match: \b(?<!new\s)({{function_name}})(!)
       captures:
         1: variable.function.d
         2: keyword.operator.d
-    - match: \b(?<!new\s|\!)([[:lower:]_][[:alnum:]_]*)\s*(?=\()
+    - match: \b(?<!new\s|\!)({{function_name}})\s*(?=\()
       captures: { 1: variable.function.d }
 
   unittest:
@@ -283,6 +262,29 @@ contexts:
         - match: \}
           scope: punctuation.block.d
           pop: true
+
+  signature-fields:
+    - meta_scope: meta.signature.field.d
+    - include: _token-no-jump
+    - match: ;
+      scope: punctuation.terminator.d
+      set: hub
+
+  lables:
+    - match: '^\s*(@?{{identifier}}(?<!default|case))\s*(:)'
+      captures:
+        1: constant.language.d
+        2: keyword.operator.d
+
+  punctuations:
+    - match: '[\(\)]'
+      scope: punctuation.group.d
+    - match: '[\[\]]'
+      scope: punctuation.section.d
+    - match: \.
+      scope: punctuation.accessor.d
+    - match: \,
+      scope: punctuation.separator.d
 
   constants:
     # bool
@@ -321,7 +323,7 @@ contexts:
     - match: \b(?<![[:alnum:]_]\.)(?:int8_t|int16_t|int32_t|int64_t|uint8_t|uint16_t|uint32_t|uint64_t|int_least8_t|int_least16_t|int_least32_t|int_least64_t|uint_least8_t|uint_least16_t|uint_least32_t|uint_least64_t|int_fast8_t|int_fast16_t|int_fast32_t|int_fast64_t|uint_fast8_t|uint_fast16_t|uint_fast32_t|uint_fast64_t|intptr_t|uintptr_t|intmax_t|intmax_t|uintmax_t|uintmax_t)\b
       scope: support.type.c
     # user types
-    - match: '\b(?:_[[:upper:]]|[[:upper:]])[[:alnum:]_]*\b'
+    - match: '\b{{type_name}}\b'
       scope: support.type.d
     # std module
     - match: '(?:\b|\s+)(?:core|std|etc)\.[[:alnum:]_\.]+'
@@ -534,14 +536,6 @@ contexts:
         - match: '>"'
           scope: punctuation.definition.string.d
           pop: true
-    - match: 'q"([[:graph:]])'
-      scope: punctuation.definition.string.d
-      push:
-        - meta_content_scope: string.quoted.other.string.d
-        - include: string-format-placeholder
-        - match: '\1"'
-          scope: punctuation.definition.string.d
-          pop: true
     # heredoc
     - match: 'q"({{identifier}})\n'
       scope: punctuation.definition.string.d
@@ -549,6 +543,14 @@ contexts:
         - meta_content_scope: string.quoted.other.d
         - include: string-format-placeholder
         - match: '^\1"'
+          scope: punctuation.definition.string.d
+          pop: true
+    - match: 'q"([[:graph:]])'
+      scope: punctuation.definition.string.d
+      push:
+        - meta_content_scope: string.quoted.other.string.d
+        - include: string-format-placeholder
+        - match: '\1"'
           scope: punctuation.definition.string.d
           pop: true
 

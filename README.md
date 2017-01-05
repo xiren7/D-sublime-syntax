@@ -22,3 +22,8 @@ Features
     * embedded assembly code (requires installing assembly syntax)
 - Displays the signature of function and type (via ctrl+R)
 
+Details
+-------
+- Enforce some coding style as the highlighting rule:
+    * Any identitier startswith upper case will treat as type name
+    * Any function name must startswith lower case

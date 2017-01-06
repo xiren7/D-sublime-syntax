@@ -12,14 +12,14 @@ scope: source.d
 variables:
   identifier: '[[:alpha:]_][[:alnum:]_]*'
   function_name: '(?:[[:lower:]_]|[[:lower:]])[[:alnum:]_]*'
-  type_name: '(?:[[:upper:]_]|[[:upper:]])[[:alnum:]_]*'
+  type_name: '(?:(?:_[[:upper:]]|[[:upper:]])[[:alnum:]_]*)|(?:[[:lower:]_][[:alnum:]_]*_t)'
   character_escaped: \\(?:\\|[abfnrtv''"?]|[0-3]\d{,2}|x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8}|&\w+;)
   keywords_token_only: (?:catch|finally|try|do|import|goto|case|default|else|break|continue|throw|new|assert|switch|for|foreach|foreach_reverse|while)
   keywords_all: (?:{{keywords_token_only}}|out|alias|return|if|pragma|version|function|delegate|mixin|with|cast|typeof|typeid)
+  function_name_not_contains: (?:private|public|pure|nothrow|inout|immutable|pragma|version|function|delegate|const|extern|mixin|deprecated|debug|with|cast|typeof|typeid|for|foreach|foreach_reverse|if|while|assert)
   field_not_startswith: (?:enum|struct|alias|version|return)
   visibility_attribute: (?:private|protected|public|export|package)
-  function_name_not_contains: (?:private|public|pure|nothrow|inout|immutable|pragma|version|function|delegate|const|extern|mixin|deprecated|debug|with|cast|typeof|typeid|for|foreach|foreach_reverse|if|while|assert)
-  simple_variable_define: (?=^\s*{{visibility_attribute}}?\s*\b[\d\w\[\]_\(\)\*]+(?<!{{field_not_startswith}})\s*\b\*?\s*{{identifier}}\s*=?\s*[[:alnum:]]*\s*;)
+  simple_variable_defines: (?=^\s*{{visibility_attribute}}?\s*\b[\d\w\[\]_\(\)\*]+(?<!{{field_not_startswith}})\s*\b\*?\s*{{identifier}}\s*=?\s*[[:alnum:]]*\s*;)
 
 contexts:
   main:
@@ -42,26 +42,14 @@ contexts:
 
   hub-function:
     - meta_scope: meta.function.d
-    - match: \{
-      scope: punctuation.block.d
-      push:
-        - include: hub
     - include: hub
 
   hub-class:
     - meta_scope: meta.class.d
-    - match: \{
-      scope: punctuation.block.d
-      push:
-        - include: hub
     - include: hub
 
   hub-others:
     - meta_scope: meta.others.d
-    - match: \{
-      scope: punctuation.block.d
-      push:
-        - include: hub
     - include: hub
 
   hub:
@@ -78,7 +66,7 @@ contexts:
     # contains any keywords_token_only and debug|unittest
     - match: (?=[^/;\{]*\b({{keywords_token_only}}|debug|unittest)\b)
       set: token
-    - match: '{{simple_variable_define}}'
+    - match: '{{simple_variable_defines}}'
       set: signature-fields
     # scans not include [/;{] ends with ;|q{
     - match: (?=[^/;\{]*(;|(?<=q)\{))
@@ -142,12 +130,13 @@ contexts:
     - include: types
     - include: function-calls
     - match: \b{{identifier}}\b
+      scope: meta.identifier.d
     - include: punctuations
 
   token-no-jump:
     - include: _token-no-jump
     - match: ;
-      scope: invalid.illegal.punctuation.d
+      scope: invalid.illegal.maybe.d
       set: hub
 
   _token-no-jump:
@@ -233,7 +222,7 @@ contexts:
     - match: \b(?<!new\s|\!)({{function_name}})\s*(?=\()
       captures: { 1: variable.function.d }
 
-  unittest:
+  signature-ignore:
     - match: \bunittest|debug\b
       scope: constant.language.d
       push:
@@ -291,13 +280,13 @@ contexts:
     - match: \b(?:true|false|null)\b
       scope: constant.language.d
     # symbols
-    - include: unittest
+    - include: signature-ignore
     - match: \b(?:__simd|__ctfe|__FILE__|__FILE_FULL_PATH__|__FUNCTION__|__LINE__|__MODULE__|__PRETTY_FUNCTION__|__TIME__|__TIMESTAMP__|__VERSION__|__VENDOR__|__EOF__)\b
       scope: constant.language.d
     - match: \b(?:_arguments|_argptr)\b
       scope: variable.language.d
     # properties
-    - match: \b(?<=\.)(?:__vptr|__monitor|_ctor|_dtor|init|sizeof|alignof|mangleof|stringof|classinfo|alignof|offsetof)\b
+    - match: \b(?<=\.)(?:init|sizeof|alignof|mangleof|stringof|classinfo|alignof|offsetof)\b
       scope: variable.language.d
     # this
     - match: \b(?:this|super)\b\s*(?!\()
@@ -315,16 +304,13 @@ contexts:
     # property attributes
     - match: \b(?<=@){{identifier}}\b
       scope: storage.modifier.d
-    # basic types
+    # types
     - match: \b(?:class|struct|union|enum|template|interface)\b
       scope: storage.type.d
     - match: '\b(?<![[:alnum:]_]\.)(?:auto|ushort|int|uint|long|ulong|float|void|byte|ubyte|double|char|wchar|ucent|cent|short|bool|dchar|real|ireal|ifloat|idouble|creal|cfloat|cdouble|string|wstring|dstring|size_t|ptrdiff_t|sizediff_t|hash_t|equals_t)\b'
       scope: support.type.d
-    - match: \b(?<![[:alnum:]_]\.)(?:int8_t|int16_t|int32_t|int64_t|uint8_t|uint16_t|uint32_t|uint64_t|int_least8_t|int_least16_t|int_least32_t|int_least64_t|uint_least8_t|uint_least16_t|uint_least32_t|uint_least64_t|int_fast8_t|int_fast16_t|int_fast32_t|int_fast64_t|uint_fast8_t|uint_fast16_t|uint_fast32_t|uint_fast64_t|intptr_t|uintptr_t|intmax_t|intmax_t|uintmax_t|uintmax_t)\b
+    - match: \b(?<![[:alnum:]_]\.)(?:{{type_name}})\b
       scope: support.type.c
-    # user types
-    - match: '\b{{type_name}}\b'
-      scope: support.type.d
     # std module
     - match: '(?:\b|\s+)(?:core|std|etc)\.[[:alnum:]_\.]+'
       scope: support.type.module.d

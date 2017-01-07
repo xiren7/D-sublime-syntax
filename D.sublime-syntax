@@ -215,7 +215,7 @@ contexts:
       set: token
 
   function-calls:
-    - match: \b(?<!new\s)({{function_name}})(!)
+    - match: \b(?<!new\s)({{function_name}})(!)(?=[[:alpha:]_])
       captures:
         1: variable.function.d
         2: keyword.operator.d
@@ -286,7 +286,7 @@ contexts:
     - match: \b(?:_arguments|_argptr)\b
       scope: variable.language.d
     # properties
-    - match: \b(?<=\.)(?:init|sizeof|alignof|mangleof|stringof|classinfo|alignof|offsetof)\b
+    - match: \b(?<=\.)(?:init|sizeof|alignof|mangleof|stringof|classinfo|offsetof)\b
       scope: variable.language.d
     # this
     - match: \b(?:this|super)\b\s*(?!\()
@@ -415,8 +415,8 @@ contexts:
       push:
         - meta_include_prototype: false
         - meta_content_scope: string.quoted.other.d
-        - match: '`'
-          scope: punctuation.definition.string.d
+        - match: '\\?(`)'
+          captures: { 1: punctuation.definition.string.d }
           set: string-postfix
         - match: ''
           push: scope:source.regexp.python

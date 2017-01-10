@@ -25,7 +25,7 @@ contexts:
   main:
     - meta_scope: meta.global.d
     # match first line
-    - match: '^#!.*\n'
+    - match: '\A#!.*$'
       scope: comment.line.d
     # match module
     - match: '^\s*(module)\s+([^ ;]+?)\s*(;)'
@@ -100,13 +100,13 @@ contexts:
       scope: punctuation.block.d
       pop: true
     - include: lables
-    - match: (;)\s*\n?
+    - match: (;)\s*$?
       captures: { 1: punctuation.terminator.d }
     - include: _token
 
   token:
     - include: lables
-    - match: \s*\n
+    - match: \s*$
       set: hub
     - match: \s+
     - match: q?\{
@@ -115,7 +115,7 @@ contexts:
     - match: \}
       scope: punctuation.block.d
       pop: true
-    - match: (;)\s*\n?
+    - match: (;)\s*$?
       captures: { 1: punctuation.terminator.d }
       set: hub
     - include: _token
@@ -343,7 +343,7 @@ contexts:
     - match: \s*///?
       push:
         - meta_scope: comment.line.d
-        - match: \n
+        - match: $
           pop: true
     # signature
     - match: \s*/\*\*/
@@ -446,7 +446,7 @@ contexts:
         - match: '"'
           scope: punctuation.definition.string.d
           set: string-postfix
-        - match: ' |\n'
+        - match: ' |$'
         - match: \H
           scope: invalid.illegal.d
     - include: string-delimited
@@ -477,7 +477,7 @@ contexts:
   string-escaped:
     - match: '{{character_escaped}}'
       scope: constant.character.escape.d
-    - match: (\\)(?:(.)|\n)
+    - match: (\\)(?:(.)|$)
       captures:
         1: invalid.illegal.d
         2: invalid.illegal.d
@@ -523,7 +523,7 @@ contexts:
           scope: punctuation.definition.string.d
           pop: true
     # heredoc
-    - match: 'q"({{identifier}})\n'
+    - match: 'q"({{identifier}})$'
       scope: punctuation.definition.string.d
       push:
         - meta_content_scope: string.quoted.other.d

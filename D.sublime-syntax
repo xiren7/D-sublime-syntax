@@ -215,7 +215,7 @@ contexts:
       set: token
 
   function-calls:
-    - match: \b(?<!new\s)({{function_name}})(!)(?=[[:alpha:]_])
+    - match: \b(?<!new\s)({{function_name}})(!)(?=[[:alpha:]_\(])
       captures:
         1: variable.function.d
         2: keyword.operator.d

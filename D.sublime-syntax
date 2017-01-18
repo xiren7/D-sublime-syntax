@@ -23,104 +23,99 @@ variables:
 
 contexts:
   main:
-    - meta_scope: meta.global.d
-    # match first line
+    - meta_scope: meta.module.d
+    # first line
     - match: '\A#!.*$'
       scope: comment.line.d
-    # match module
+    # module
     - match: '^\s*(module)\s+([^ ;]+?)\s*(;)'
       captures:
         1: keyword.control.d
         2: constant.language.d
         3: punctuation.terminator.d
-    # start hub
+    # enter the lookup loop
     - match: (?=.)
-      push: hub
+      push: lookup
 
   prototype:
     - include: comments
 
-  hub-function:
+  lookup-in-function:
     - meta_scope: meta.function.d
-    - include: hub
+    - include: lookup
 
-  hub-class:
+  lookup-in-class:
     - meta_scope: meta.class.d
-    - include: hub
+    - include: lookup
 
-  hub-others:
+  lookup-in-others:
     - meta_scope: meta.others.d
-    - include: hub
+    - include: lookup
 
-  hub:
+  lookup-in-ignore-signature:
+    - meta_scope: meta.ignore-signature.d
+    - match: \s+
+    - match: q?\{
+      scope: punctuation.block.d
+      push: lookup-in-ignore-signature
+    - match: \}
+      scope: punctuation.block.d
+      pop: true
+    - match: ;
+      scope: punctuation.terminator.d
+    - include: token
+
+  lookup:
     # {}
     - match: \s*(q?\{)
       captures: { 1: punctuation.block.d }
-      push: hub
+      push: lookup
     - match: \s*(\})
       captures: { 1: punctuation.block.d }
       pop: true
-    # contains only visibility_attribute body|in|out
+    # contains only visibility_attribute and body|in|out
     - match: (?=^\s*({{visibility_attribute}}|body|in|out)\s*$)
-      set: token
+      set: tokens
     # contains any keywords_token_only and debug|unittest
     - match: (?=[^/;\{]*\b({{keywords_token_only}}|debug|unittest)\b)
-      set: token
+      set: tokens
     - match: '{{simple_variable_defines}}'
       set: signature-fields
-    # scans not include [/;{] ends with ;|q{
+    # scans not include [/;{] and ends with ;|q{
     - match: (?=[^/;\{]*(;|(?<=q)\{))
-      set: token
+      set: tokens
     # starts with return|if|static if
     - match: (?=^\s*(return|if|static if|else)\b)
-      set: token
+      set: tokens
     # starts with this(
     - match: (?=^\s*\bthis\b\s*\()
       set: signature
-    # scans not include [/;{=(] ends with =
+    # scans not include [/;{=(] and ends with =
     - match: (?=[^/;\{=\(]*=)
-      set: token
-    # starts with identifier( not include keywords
+      set: tokens
+    # starts with identifier( and not include keywords
     - match: (?=^\s*{{identifier}}(?<!{{function_name_not_contains}})\s*\(.*\))
-      set: token
+      set: tokens
     # enum define constants
     - match: (?=.*\benum\b[^;:\{]+(;|:|$))
-      set: token
+      set: tokens
     # else
     - match: (?=.)
       set: signature
 
-  hub-no-signature:
-    - meta_scope: meta.no-signature.d
+  tokens:
+    - match: '[\t ]*$'
+      set: lookup
     - match: \s+
-    - match: q?\{
-      scope: punctuation.block.d
-      push: hub-no-signature
-    - match: \}
-      scope: punctuation.block.d
-      pop: true
-    - include: lables
-    - match: (;)\s*$?
-      captures: { 1: punctuation.terminator.d }
-    - include: _token
+    - match: ;
+      scope: punctuation.terminator.d
+      set: lookup
+    - match: (?=(q?\{)|\})
+      set: lookup
+    - include: token
 
   token:
     - include: lables
-    - match: \s*$
-      set: hub
-    - match: \s+
-    - match: q?\{
-      scope: punctuation.block.d
-      push: hub
-    - match: \}
-      scope: punctuation.block.d
-      pop: true
-    - match: (;)\s*$?
-      captures: { 1: punctuation.terminator.d }
-      set: hub
-    - include: _token
-
-  _token:
     - include: controls
     - include: numbers
     - include: constants
@@ -133,14 +128,14 @@ contexts:
       scope: meta.identifier.d
     - include: punctuations
 
-  token-no-jump:
-    - include: _token-no-jump
-    - match: ;
-      scope: invalid.illegal.maybe.d
-      set: hub
-
-  _token-no-jump:
+  tokens-in-signature:
     - match: \s+
+    - match: ;
+      # scope: invalid.illegal.maybe.d
+      set: lookup
+    - include: token-in-signature
+
+  token-in-signature:
     - include: controls
     - include: numbers
     - include: constants
@@ -151,68 +146,68 @@ contexts:
     - include: strings
     - include: punctuations
 
-  # jump back to token or hub
   signature:
     # class|struct
     - match: (?=[^\\/"`;]*\b(?:class|struct)\b\s*{{identifier}}\b)
-      set: # typename lookahead matched, match tokes, jump to typename
+      set:
         - meta_scope: meta.signature.type.d
         - match: \s*\b(?:class|struct)\b
           scope: storage.type.d
-          set: # typename matched, jump to identifier
+          set: # typename matched
             - meta_scope: meta.signature.type.d
             - match: \s*\b({{identifier}})\b
               scope: support.type.d entity.name.type.d
-              set: # identifier matched, match tokes, jump back to hub
+              set: # identifier matched
                 - meta_scope: meta.signature.type.d
-                - include: token-no-jump
+                - include: tokens-in-signature
                 - match: \s*(?=\{)
-                  set: hub-class
-            - match: '\S' # identifier not matched, jump back to hub
+                  set: lookup-in-class
+            - match: '\S' # identifier not matched
               scope: invalid.illegal.identifier.d
             - match: \s*(?=\{)
-              set: hub-class
-        - include: token-no-jump
+              set: lookup-in-class
+        - include: tokens-in-signature
     # union|enum|template|interface
     - match: (?=[^\\/"`;]*\b(?:union|enum|template|interface)\b\s*{{identifier}}\b)
-      set: # typename lookahead matched, match tokes, jump to typename
+      set:
         - meta_scope: meta.signature.type.d
         - match: \s*\b(?:union|enum|template|interface)\b
           scope: storage.type.d
-          set: # typename matched, jump to identifier
+          set: # typename matched
             - meta_scope: meta.signature.type.d
             - match: \s*\b({{identifier}})\b
               scope: support.type.d entity.name.type.d
-              set: # identifier matched, match tokes, jump back to hub
+              set: # identifier matched
                 - meta_scope: meta.signature.type.d
-                - include: token-no-jump
+                - include: tokens-in-signature
                 - match: \s*(?=\{)
-                  set: hub-others
-            - match: '\S' # identifier not matched, jump back to hub
+                  set: lookup-in-others
+            - match: '\S' # identifier not matched
               scope: invalid.illegal.identifier.d
             - match: \s*(?=\{)
-              set: hub-others
-        - include: token-no-jump
+              set: lookup-in-others
+        - include: tokens-in-signature
     # this|~this
     - match: \s+(~this|this)\s*(?=\()\b
       captures: { 1: entity.name.function.d }
       set:
         - meta_scope: meta.signature.type.d
-        - include: token-no-jump
+        - include: tokens-in-signature
         - match: \s+
         - match: (?=\{)
-          set: hub-function
+          set: lookup-in-function
     # funcion define
     - match: (?=(^|([^\\/"`;]*[[:alpha:]_*\)\]]\s+))\*?{{function_name}}(?<!{{function_name_not_contains}})\s*(\(|$))
       set:
         - meta_scope: meta.signature.function.d
-        - include: token-no-jump
+        - include: tokens-in-signature
         - match: \b({{identifier}})(?=\s*(\(|$))\b
           scope: entity.name.function.d
         - match: (?=\{)
-          set: hub-function
+          set: lookup-in-function
+    # else
     - match: (?=.)
-      set: token
+      set: tokens
 
   function-calls:
     - match: \b(?<!new\s)({{function_name}})(!)(?=[[:alpha:]_\(])
@@ -222,42 +217,12 @@ contexts:
     - match: \b(?<!new\s|\!)({{function_name}})\s*(?=\()
       captures: { 1: variable.function.d }
 
-  signature-ignore:
-    - match: \bunittest|debug\b
-      scope: constant.language.d
-      push:
-        - meta_scope: meta.no-signature.d
-        - match: q?\{
-          scope: punctuation.block.d
-          set: hub-no-signature
-        - include: _token-no-jump
-        - match: \s+
-        - match: ;
-          scope: punctuation.terminator.d
-          pop: true
-    - match: \basm\b
-      scope: constant.language.d
-      push:
-        - meta_scope: meta.no-signature.d
-        - match: q?\{
-          scope: punctuation.block.d
-          push: scope:source.asm
-          with_prototype:
-            - include: comments
-            - match: '(?=\})'
-              pop: true
-        - include: _token-no-jump
-        - match: \s+
-        - match: \}
-          scope: punctuation.block.d
-          pop: true
-
   signature-fields:
     - meta_scope: meta.signature.field.d
-    - include: _token-no-jump
+    - include: token-in-signature
     - match: ;
       scope: punctuation.terminator.d
-      set: hub
+      set: lookup
 
   lables:
     - match: '^\s*(@?{{identifier}}(?<!default|case))\s*(:)'
@@ -275,21 +240,55 @@ contexts:
     - match: \,
       scope: punctuation.separator.d
 
+  token-ignore-signature:
+    - match: \bunittest|debug\b
+      scope: constant.language.d
+      push:
+        - meta_scope: meta.ignore-signature.d
+        - match: q?\{
+          scope: punctuation.block.d
+          set: lookup-in-ignore-signature
+        - include: token-in-signature
+        - match: \s+
+        - match: ;
+          scope: punctuation.terminator.d
+          pop: true
+    - match: \basm\b
+      scope: constant.language.d
+      push:
+        - meta_scope: meta.ignore-signature.d
+        - match: q?\{
+          scope: punctuation.block.d
+          push: scope:source.asm
+          with_prototype:
+            - match: naked
+              scope: constant.language.d
+            - match: '[;,]'
+              scope: punctuation.terminator.d
+            - match: '(?=\})'
+              pop: true
+            - include: comments
+        - include: token-in-signature
+        - match: \s+
+        - match: \}
+          scope: punctuation.block.d
+          pop: true
+
   constants:
     # bool
     - match: \b(?:true|false|null)\b
       scope: constant.language.d
     # symbols
-    - include: signature-ignore
+    - include: token-ignore-signature
     - match: \b(?:__simd|__ctfe|__FILE__|__FILE_FULL_PATH__|__FUNCTION__|__LINE__|__MODULE__|__PRETTY_FUNCTION__|__TIME__|__TIMESTAMP__|__VERSION__|__VENDOR__|__EOF__)\b
       scope: constant.language.d
-    - match: \b(?:_arguments|_argptr)\b
+    - match: \b(?:_arguments|_argptr|super)\b
       scope: variable.language.d
     # properties
     - match: \b(?<=\.)(?:init|sizeof|alignof|mangleof|stringof|classinfo|offsetof)\b
       scope: variable.language.d
     # this
-    - match: \b(?:this|super)\b\s*(?!\()
+    - match: \b(?:this)\b\s*(?!\()
       scope: variable.language.d
 
   types:
@@ -307,9 +306,9 @@ contexts:
     # types
     - match: \b(?:class|struct|union|enum|template|interface)\b
       scope: storage.type.d
-    - match: '\b(?<![[:alnum:]_]\.)(?:auto|ushort|int|uint|long|ulong|float|void|byte|ubyte|double|char|wchar|ucent|cent|short|bool|dchar|real|ireal|ifloat|idouble|creal|cfloat|cdouble|string|wstring|dstring|size_t|ptrdiff_t|sizediff_t|hash_t|equals_t)\b'
+    - match: '\b(?<![[:alnum:]_]\.)(?:auto|ushort|int|uint|long|ulong|float|void|byte|ubyte|double|char|wchar|ucent|cent|short|bool|dchar|real|ireal|ifloat|idouble|creal|cfloat|cdouble|string|wstring|dstring)\b'
       scope: support.type.d
-    - match: \b(?<![[:alnum:]_]\.)(?:{{type_name}})\b
+    - match: \b(?<![[:alnum:]_\)\]]\.)(?:{{type_name}})\b
       scope: support.type.c
     # std module
     - match: '(?:\b|\s+)(?:core|std|etc)\.[[:alnum:]_\.]+'
@@ -334,7 +333,7 @@ contexts:
   controls:
     - match: '\bbody\b'
       scope: keyword.control.d
-      set: hub-function
+      set: lookup-in-function
     - match: \b{{keywords_all}}\b
       scope: keyword.control.d
 

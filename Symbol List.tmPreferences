@@ -14,7 +14,7 @@
         <!-- replace multiple spaces with a single space if not the leading spaces -->
         <!-- replace characters with ... after the 100th in one line -->
         <string>
-            s/@(safe|trusted|system|nogc)\b|(?:\bconst|pure|nothrow|private|public|static\b) ?//g;
+            s/@(safe|trusted|system|nogc)\b|(?:\bfinal|const|pure|nothrow|private|public|static\b) ?//g;
             s/\s*\n\s*/ /g;
             s/(^.{100})(?:.+)$/$1.../g;
         </string>

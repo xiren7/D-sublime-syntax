@@ -4,7 +4,7 @@
     <key>name</key>
     <string>Symbol List</string>
     <key>scope</key>
-    <string>source.d meta.no-signature.d, source.d meta.function.d meta.signature.field.d, source.d meta.others.d meta.signature.field.d</string>
+    <string>source.d meta.ignore-signature, source.d meta.function meta.signature.field, source.d meta.others meta.signature.field</string>
     <key>settings</key>
     <dict>
         <key>showInSymbolList</key>
